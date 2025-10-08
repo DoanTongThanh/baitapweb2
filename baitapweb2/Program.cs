@@ -1,11 +1,11 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using baitapweb2.Data;
-using baitapweb2.Repositories; // Thêm namespace cho Repository
+using baitapweb2.Repositories; // Đảm bảo namespace này tồn tại
 
 var builder = WebApplication.CreateBuilder(args);
 
 // =====================================================================
-// 1. Đăng ký DBContext (Chỉ một lần)
+// 1. Đăng ký DBContext
 // =====================================================================
 builder.Services.AddDbContext<AppDbContext>(options =>
 {
@@ -14,10 +14,12 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 });
 
 // =====================================================================
-// 2. ĐĂNG KÝ REPOSITORY (BẮT BUỘC cho Dependency Injection)
-// Sử dụng AddScoped để đảm bảo mỗi HTTP Request có một instance Repository mới.
+// 2. ĐĂNG KÝ CÁC REPOSITORY (Dependency Injection)
+// Đăng ký tất cả các Repository đã tạo (Book, Author, Publisher)
 // =====================================================================
-builder.Services.AddScoped<IBookRepository, BookRepository>();
+builder.Services.AddScoped<IBookRepository, SQLBookRepository>();
+builder.Services.AddScoped<IAuthorRepository, SQLAuthorRepository>();
+builder.Services.AddScoped<IPublisherRepository, SQLPublisherRepository>();
 
 
 // Add services to the container.
@@ -44,4 +46,4 @@ app.UseAuthorization();
 
 app.MapControllers();
 
-app.Run(); 
+app.Run();

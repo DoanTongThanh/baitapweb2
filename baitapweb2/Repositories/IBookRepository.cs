@@ -18,6 +18,6 @@ namespace baitapweb2.Repositories
         Book UpdateBookById(int id, AddBookDTO bookRequest);
 
         // DELETE
-        Book DeleteBookById(int id);
+        Book? DeleteBookById(int id); // Sửa: Dùng Book? để cho phép trả về null nếu không tìm thấy sách
     }
 }

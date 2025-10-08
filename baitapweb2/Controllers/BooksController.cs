@@ -1,110 +1,116 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using baitapweb2.Models.DTO;
-using baitapweb2.Models.Domain;
-using baitapweb2.Repositories; // Thêm namespace này!
-using System.Linq;
-using System.Collections.Generic;
-using System;
+using baitapweb2.Repositories;
+using baitapweb2.Models.Domain; // Cần thiết để trả về Book Domain Model trong Add/Update
 
 namespace baitapweb2.Controllers
 {
+    // Cấu hình Controller
     [Route("api/[controller]")]
     [ApiController]
     public class BooksController : ControllerBase
     {
-        // THAY THẾ AppDbContext bằng IBookRepository
+        // Khai báo Repository
         private readonly IBookRepository _bookRepository;
 
-        // Dependency Injection cho IBookRepository
+        // Dependency Injection: Nhận IBookRepository qua constructor
         public BooksController(IBookRepository bookRepository)
         {
             _bookRepository = bookRepository;
         }
 
-        // =================================================================
-        // 1. GET ALL BOOKS (DTO)
-        // Logic truy vấn đã chuyển vào Repository
-        // =================================================================
-        [HttpGet("get-all-books")]
-        public IActionResult GetAllBooks()
+        // =========================================================================
+        // GET ALL BOOKS (READ)
+        // URL: GET /api/Books
+        // =========================================================================
+        [HttpGet]
+        public IActionResult GetAll()
         {
-            var allBooksWithDetails = _bookRepository.GetAllBooks();
-            return Ok(allBooksWithDetails);
+            var books = _bookRepository.GetAllBooks();
+            return Ok(books);
         }
 
-        // =================================================================
-        // 2. GET BOOK BY ID (DTO)
-        // Logic truy vấn đã chuyển vào Repository
-        // =================================================================
-        [HttpGet("{id}")]
+        // =========================================================================
+        // GET BOOK BY ID (READ)
+        // URL: GET /api/Books/{id}
+        // =========================================================================
+        [HttpGet]
+        [Route("{id:int}")]
         public IActionResult GetBookById([FromRoute] int id)
         {
-            var bookWithDetails = _bookRepository.GetBookById(id);
+            var bookDto = _bookRepository.GetBookById(id);
 
-            if (bookWithDetails == null)
+            if (bookDto == null)
             {
-                return NotFound($"Book with Id = {id} not found.");
+                return NotFound(); // Trả về 404 nếu không tìm thấy
             }
 
-            return Ok(bookWithDetails);
+            return Ok(bookDto);
         }
 
-        // =================================================================
-        // 3. ADD BOOK (POST)
-        // Logic truy vấn (ADD) đã chuyển vào Repository. 
-        // Logic kiểm tra ID (VALIDATION) đã được đơn giản hóa.
-        // =================================================================
+        // =========================================================================
+        // ADD NEW BOOK (CREATE)
+        // URL: POST /api/Books
+        // =========================================================================
         [HttpPost]
-        public IActionResult AddBook([FromBody] AddBookDTO bookRequest)
+        public IActionResult AddBook([FromBody] AddBookDTO addBookRequest)
         {
-            // Logic kiểm tra ID nên nằm trong Repository hoặc Service Layer.
-            // Để code Controller gọn gàng nhất, ta chỉ gọi phương thức Add.
-            var bookDomain = _bookRepository.AddBook(bookRequest);
-
-            // Kiểm tra lỗi có thể xảy ra trong Repository (ví dụ: ID không hợp lệ)
-            if (bookDomain == null)
+            // Kiểm tra tính hợp lệ của Model
+            if (!ModelState.IsValid)
             {
-                return BadRequest("Invalid Publisher or Author ID(s) found during creation.");
+                return BadRequest(ModelState);
             }
 
-            // Trả về 201 Created
-            return CreatedAtAction(nameof(GetBookById), new { id = bookDomain.BookId }, bookDomain);
+            // Gọi Repository để thêm sách. Trả về Domain Model (Book)
+            Book addedBookDomain = _bookRepository.AddBook(addBookRequest);
+
+            // Tùy chọn: Trả về 201 Created và đường dẫn đến tài nguyên mới
+            return CreatedAtAction(nameof(GetBookById), new { id = addedBookDomain.BookId }, addedBookDomain);
         }
 
-        // =================================================================
-        // 4. UPDATE BOOK BY ID (PUT)
-        // Logic truy vấn (UPDATE) đã chuyển vào Repository
-        // =================================================================
-        [HttpPut("{id}")]
-        public IActionResult UpdateBookById([FromRoute] int id, [FromBody] AddBookDTO bookRequest)
+        // =========================================================================
+        // UPDATE BOOK (UPDATE)
+        // URL: PUT /api/Books/{id}
+        // =========================================================================
+        [HttpPut]
+        [Route("{id:int}")]
+        public IActionResult UpdateBookById([FromRoute] int id, [FromBody] AddBookDTO updateBookRequest)
         {
-            var updatedBook = _bookRepository.UpdateBookById(id, bookRequest);
-
-            if (updatedBook == null)
+            if (!ModelState.IsValid)
             {
-                // Nếu Repository trả về null, tức là không tìm thấy sách
-                return NotFound($"Book with Id = {id} not found for updating.");
+                return BadRequest(ModelState);
             }
 
-            return Ok(updatedBook);
+            // Gọi Repository để cập nhật sách. Trả về Domain Model (Book)
+            Book? updatedBookDomain = _bookRepository.UpdateBookById(id, updateBookRequest);
+
+            if (updatedBookDomain == null)
+            {
+                return NotFound(); // Trả về 404 nếu không tìm thấy sách
+            }
+
+            return Ok(updatedBookDomain);
         }
 
-        // =================================================================
-        // 5. DELETE BOOK BY ID (DELETE)
-        // Logic truy vấn (DELETE) đã chuyển vào Repository
-        // =================================================================
-        [HttpDelete("{id}")]
+        // =========================================================================
+        // DELETE BOOK (DELETE)
+        // URL: DELETE /api/Books/{id}
+        // =========================================================================
+        [HttpDelete]
+        [Route("{id:int}")]
         public IActionResult DeleteBookById([FromRoute] int id)
         {
-            var deletedBook = _bookRepository.DeleteBookById(id);
+            // Gọi Repository để xóa sách
+            Book? deletedBookDomain = _bookRepository.DeleteBookById(id);
 
-            if (deletedBook == null)
+            if (deletedBookDomain == null)
             {
-                // Nếu Repository trả về null, tức là không tìm thấy sách
-                return NotFound($"Book with Id = {id} not found for deletion.");
+                return NotFound(); // Trả về 404 nếu không tìm thấy
             }
 
-            return Ok($"Book with Id = {id} successfully deleted.");
+            // Trả về sách đã xóa (hoặc NoContent)
+            return Ok(deletedBookDomain);
+            // Hoặc dùng: return NoContent(); để trả về 204
         }
     }
 }
