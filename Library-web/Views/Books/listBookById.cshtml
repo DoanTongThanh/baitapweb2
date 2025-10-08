@@ -1,0 +1,76 @@
+﻿@* File: Views/Books/listBookById.cshtml *@
+@model Library_web.Models.DTO.BookDTO
+
+@{
+    ViewData["Title"] = Model.Title;
+}
+
+<h1>@Model.Title</h1>
+<hr />
+
+<div class="row">
+    <div class="col-md-4">
+        @if (!string.IsNullOrEmpty(Model.CoverUrl))
+        {
+            <img src="@Model.CoverUrl" alt="Cover Image" class="img-fluid" style="width: 100%; max-width: 200px;" />
+        }
+    </div>
+    <div class="col-md-8">
+        <h3>Thông tin chi tiết:</h3>
+
+        <p><strong>Mô tả:</strong> @Model.Description</p>
+        <p><strong>Ngày thêm:</strong> @Model.DateAdded.ToString("dd/MM/yyyy")</p>
+        <p><strong>Nhà xuất bản:</strong> @Model.PublisherName</p>
+
+        @* Tình trạng đọc *@
+        <p>
+            <strong>Đã đọc:</strong>
+            @if (Model.IsRead)
+            {
+                <span class="badge bg-success">Đã đọc</span>
+                <br />
+                <strong>Ngày đọc:</strong>
+ 
+                @Model.DateRead?.ToString("dd/MM/yyyy")
+            }
+            else
+            {
+                <span class="badge bg-secondary">Chưa đọc</span>
+            }
+        </p>
+
+        @* Đánh giá *@
+        <p>
+            <strong>Review:</strong>
+            @if (Model.Rate.HasValue && Model.Rate.Value > 0)
+            {
+                for (var i = 0; i < Model.Rate.Value; i++)
+                {
+                    <span style="color: gold; font-size: 1.5em;">★</span>
+                }
+            }
+            else if (Model.IsRead)
+            {
+                <span>Chưa đánh giá</span>
+            }
+            else
+            {
+                <span>Chưa đọc</span>
+            }
+        </p>
+
+        @* Tác giả *@
+        <p>
+            <strong>Tác giả:</strong>
+            @foreach (var author in Model.AuthorNames)
+            {
+                <span class="badge bg-primary me-1">@author</span>
+            }
+        </p>
+    </div>
+</div>
+
+<div class="mt-4">
+    <a asp-action="Index" class="btn btn-secondary">Quay lại danh sách</a>
+    <a asp-action="Edit" asp-route-id="@Model.Id" class="btn btn-warning">Chỉnh sửa</a>
+</div>

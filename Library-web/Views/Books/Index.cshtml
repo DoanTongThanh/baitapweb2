@@ -1,0 +1,93 @@
+﻿@* File: Views/Books/Index.cshtml *@
+@model IEnumerable<Library_web.Models.DTO.BookDTO>
+
+@{
+    ViewData["Title"] = "Quản lý Sách";
+}
+
+<h1>List all books</h1>
+
+@* Form tìm kiếm và sắp xếp *@
+<form asp-controller="Books" asp-action="Index" method="GET">
+    <div class="row mb-3">
+        <div class="col-md-3">
+            <label for="filterOn">Tìm kiếm sách:</label>
+            <select id="filterOn" name="filterOn" class="form-control">
+                <option value="title">Tiêu đề</option>
+                <option value="author">Tác giả</option>
+                <option value="publisher">Nhà xuất bản</option>
+            </select>
+        </div>
+        <div class="col-md-4">
+            <label for="filterQuery">Từ khóa:</label>
+            <input type="text" id="filterQuery" name="filterQuery" class="form-control" />
+        </div>
+        <div class="col-md-3">
+            <label>Sắp xếp:</label>
+            <div class="form-check">
+                <input type="radio" id="sortAsc" name="isAscending" value="True" checked class="form-check-input">
+                <label class="form-check-label" for="sortAsc">Tăng dần</label>
+            </div>
+            <div class="form-check">
+                <input type="radio" id="sortDesc" name="isAscending" value="False" class="form-check-input">
+                <label class="form-check-label" for="sortDesc">Giảm dần</label>
+            </div>
+        </div>
+        <div class="col-md-2 d-flex align-items-end">
+            <button type="submit" class="btn btn-primary">Search</button>
+        </div>
+    </div>
+</form>
+
+<hr />
+
+<a asp-controller="Books" asp-action="addBook" class="btn btn-primary mb-3">Add new book</a>
+
+<table class="table table-striped">
+    <thead>
+        <tr>
+            <th>ID</th>
+            <th>Title/Description</th>
+            <th>Author(s)</th>
+            <th>Publisher</th>
+            <th>Rating</th>
+            <th>Actions</th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var item in Model)
+        {
+            <tr>
+                <td>@item.Id</td>
+                <td>
+                    <strong>@item.Title</strong><br />
+                    <small>@item.Description</small>
+                </td>
+                <td>
+                    @foreach (var author in item.AuthorNames)
+                    {
+                        <span>@author</span>
+                
+                        <br />
+                    }
+                </td>
+                <td>@item.PublisherName</td>
+                <td>
+                    @* Hiển thị đánh giá bằng sao *@
+                    @if (item.Rate.HasValue)
+                    {
+                        for (var i = 0; i < item.Rate; i++)
+                        {
+                            <span style="color: gold;">★</span>
+                        }
+                    }
+                </td>
+                <td>
+                    <a asp-controller="Books" asp-action="listBookById" asp-route-id="@item.Id" class="btn btn-sm btn-info">Detail</a> |
+                    <a asp-controller="Books" asp-action="Edit" asp-route-id="@item.Id" class="btn btn-sm btn-warning">Edit</a> |
+                    <a asp-controller="Books" asp-action="Delete" asp-route-id="@item.Id" class="btn btn-sm btn-danger">Delete</a>
+                </td>
+            </tr>
+        }
+    </tbody>
+</table>
