@@ -23,7 +23,7 @@ namespace baitapweb2.Controllers
         // URL: GET /api/Authors
         // =========================================================================
         [HttpGet]
-        public IActionResult GetAll()
+        public IActionResult GetAll() // Giữ nguyên tên GetAll()
         {
             var authors = _authorRepository.GetAllAuthors();
             return Ok(authors);
@@ -61,7 +61,6 @@ namespace baitapweb2.Controllers
 
             Author addedAuthorDomain = _authorRepository.AddAuthor(addAuthorRequest);
 
-            // Trả về 201 Created và Author Domain Model đã tạo
             return CreatedAtAction(nameof(GetAuthorById), new { id = addedAuthorDomain.AuthorId }, addedAuthorDomain);
         }
 

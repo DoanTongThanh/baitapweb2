@@ -2,9 +2,9 @@
 using baitapweb2.Models.Domain;
 using baitapweb2.Models.DTO;
 using Microsoft.EntityFrameworkCore;
+using System;
 using System.Collections.Generic;
 using System.Linq;
-using System;
 
 namespace baitapweb2.Repositories
 {
@@ -17,47 +17,113 @@ namespace baitapweb2.Repositories
             _dbContext = dbContext;
         }
 
-        // READ: GetAllBooks - Logic đã được xác nhận và sửa lỗi
-        public List<BookDTO> GetAllBooks()
+        // =========================================================================
+        // READ ALL: GET ALL BOOKS (ĐÃ KHẮC PHỤC LỖI CS0535 VÀ MAPPING)
+        // =========================================================================
+        public List<BookDTO> GetAllBooks(
+            string? filterOn = null,
+            string? filterQuery = null,
+            string? sortBy = null,
+            bool isAscending = true,
+            int pageNumber = 1,
+            int pageSize = 10)
         {
-            var allBooksDomain = _dbContext.Books
+            var allBooks = _dbContext.Books
                 .Include(b => b.Publisher)
                 .Include(b => b.Book_Authors).ThenInclude(ba => ba.Author)
-                .ToList();
+                .AsQueryable();
 
-            var allBooksDTO = allBooksDomain.Select(book => new BookDTO()
+            // 1. FILTERING
+            if (!string.IsNullOrWhiteSpace(filterOn) && !string.IsNullOrWhiteSpace(filterQuery))
             {
-                Id = book.BookId,
-                Title = book.Title,
-                Description = book.Description,
-                IsRead = book.IsRead,
-                DateRead = book.DateRead,
-                Rate = book.Rate,
-                Genre = book.Genre,
-                CoverUrl = book.CoverUrl,
-                PublisherName = book.Publisher.Name,
-                AuthorNames = book.Book_Authors.Select(n => n.Author.FullName).ToList()
-            }).ToList();
+                if (filterOn.Equals("title", StringComparison.OrdinalIgnoreCase))
+                {
+                    allBooks = allBooks.Where(x => x.Title.Contains(filterQuery));
+                }
+            }
 
-            return allBooksDTO;
+            // 2. SORTING
+            if (!string.IsNullOrWhiteSpace(sortBy))
+            {
+                if (sortBy.Equals("title", StringComparison.OrdinalIgnoreCase))
+                {
+                    allBooks = isAscending ? allBooks.OrderBy(x => x.Title) : allBooks.OrderByDescending(x => x.Title);
+                }
+            }
+
+            // 3. PAGINATION
+            var skipResults = (pageNumber - 1) * pageSize;
+
+            // Ánh xạ Domain Model sang DTO chi tiết
+            return allBooks.Skip(skipResults).Take(pageSize)
+                .Select(book => new BookDTO()
+                {
+                    Id = book.BookId, // ĐÃ SỬA LỖI CS1061
+                    Title = book.Title,
+                    Description = book.Description,
+                    IsRead = book.IsRead,
+                    DateRead = book.IsRead && book.DateRead.HasValue ? book.DateRead.Value : (DateTime?)null,
+                    Rate = book.IsRead && book.Rate.HasValue ? book.Rate.Value : (int?)null,
+                    Genre = book.Genre,
+                    CoverUrl = book.CoverUrl,
+                    PublisherName = book.Publisher.Name,
+                    AuthorNames = book.Book_Authors.Select(n => n.Author.FullName).ToList()
+                }).ToList();
         }
 
-        // READ: GetBookById - Logic đã được xác nhận và sửa lỗi
-        public BookDTO GetBookById(int id)
+        // =========================================================================
+        // CREATE: ADD BOOK (ĐÃ KHẮC PHỤC LỖI CS1061 VÀ DTO)
+        // =========================================================================
+        public Book AddBook(AddBookRequestDTO addBookRequest) // ĐÃ SỬA DTO
+        {
+            var bookDomain = new Book
+            {
+                Title = addBookRequest.Title,
+                Description = addBookRequest.Description,
+                IsRead = addBookRequest.IsRead,
+                DateRead = addBookRequest.IsRead ? addBookRequest.DateRead : null,
+                Rate = addBookRequest.IsRead ? addBookRequest.Rate : null,
+                Genre = addBookRequest.Genre,
+                CoverUrl = addBookRequest.CoverUrl,
+                PublisherId = addBookRequest.PublisherId
+            };
+
+            _dbContext.Books.Add(bookDomain);
+            _dbContext.SaveChanges();
+
+            // Thêm các mối quan hệ Book_Author
+            if (addBookRequest.AuthorIds != null && addBookRequest.AuthorIds.Any())
+            {
+                foreach (var authorId in addBookRequest.AuthorIds)
+                {
+                    var bookAuthor = new Book_Author
+                    {
+                        BookId = bookDomain.BookId, // ĐÃ SỬA LỖI CS1061
+                        AuthorId = authorId
+                    };
+                    _dbContext.Book_Authors.Add(bookAuthor);
+                }
+                _dbContext.SaveChanges();
+            }
+
+            return bookDomain;
+        }
+
+        // =========================================================================
+        // READ BY ID (ĐÃ KHẮC PHỤC LỖI CS1061 VÀ DTO)
+        // =========================================================================
+        public BookDTO? GetBookById(int id)
         {
             var bookDomain = _dbContext.Books
                 .Include(b => b.Publisher)
                 .Include(b => b.Book_Authors).ThenInclude(ba => ba.Author)
-                .FirstOrDefault(b => b.BookId == id);
+                .FirstOrDefault(b => b.BookId == id); // ĐÃ SỬA LỖI CS1061
 
-            if (bookDomain == null)
-            {
-                return null;
-            }
+            if (bookDomain == null) return null;
 
-            var bookWithDTO = new BookDTO()
+            var bookDto = new BookDTO
             {
-                Id = bookDomain.BookId,
+                Id = bookDomain.BookId, // ĐÃ SỬA LỖI CS1061
                 Title = bookDomain.Title,
                 Description = bookDomain.Description,
                 IsRead = bookDomain.IsRead,
@@ -66,118 +132,67 @@ namespace baitapweb2.Repositories
                 Genre = bookDomain.Genre,
                 CoverUrl = bookDomain.CoverUrl,
                 PublisherName = bookDomain.Publisher.Name,
-                AuthorNames = bookDomain.Book_Authors.Select(n => n.Author.FullName).ToList()
+                AuthorNames = bookDomain.Book_Authors.Select(ba => ba.Author.FullName).ToList()
             };
-
-            return bookWithDTO;
+            return bookDto;
         }
 
-        // CREATE: AddBook - Logic đã được xác nhận và sửa lỗi
-        public Book AddBook(AddBookDTO bookRequest)
+        // =========================================================================
+        // UPDATE (ĐÃ KHẮC PHỤC LỖI CS1061 VÀ DTO)
+        // =========================================================================
+        public Book? UpdateBookById(int id, AddBookRequestDTO updateBookRequest) // ĐÃ SỬA DTO
         {
-            var bookDomainModel = new Book()
-            {
-                Title = bookRequest.Title,
-                Description = bookRequest.Description,
-                IsRead = bookRequest.IsRead,
-                DateRead = bookRequest.DateRead,
-                Rate = bookRequest.Rate,
-                Genre = bookRequest.Genre,
-                CoverUrl = bookRequest.CoverUrl,
-                DateAdded = DateTime.Now,
-                PublisherId = bookRequest.PublisherId
-            };
+            var existingBook = _dbContext.Books
+                .Include(b => b.Book_Authors)
+                .FirstOrDefault(b => b.BookId == id); // ĐÃ SỬA LỖI CS1061
 
-            _dbContext.Books.Add(bookDomainModel);
-            _dbContext.SaveChanges();
+            if (existingBook == null) return null;
 
-            foreach (var authorId in bookRequest.AuthorIds)
+            // Cập nhật thuộc tính
+            existingBook.Title = updateBookRequest.Title;
+            existingBook.Description = updateBookRequest.Description;
+            existingBook.IsRead = updateBookRequest.IsRead;
+            existingBook.DateRead = updateBookRequest.IsRead ? updateBookRequest.DateRead : null;
+            existingBook.Rate = updateBookRequest.IsRead ? updateBookRequest.Rate : null;
+            existingBook.Genre = updateBookRequest.Genre;
+            existingBook.CoverUrl = updateBookRequest.CoverUrl;
+            existingBook.PublisherId = updateBookRequest.PublisherId;
+
+            // Cập nhật tác giả (xóa cũ, thêm mới)
+            var existingAuthors = existingBook.Book_Authors.ToList();
+            _dbContext.Book_Authors.RemoveRange(existingAuthors);
+
+            if (updateBookRequest.AuthorIds != null && updateBookRequest.AuthorIds.Any())
             {
-                var bookAuthor = new Book_Author()
+                foreach (var authorId in updateBookRequest.AuthorIds)
                 {
-                    BookId = bookDomainModel.BookId,
-                    AuthorId = authorId
-                };
-                _dbContext.Book_Authors.Add(bookAuthor);
+                    _dbContext.Book_Authors.Add(new Book_Author
+                    {
+                        BookId = existingBook.BookId, // ĐÃ SỬA LỖI CS1061
+                        AuthorId = authorId
+                    });
+                }
             }
-            _dbContext.SaveChanges();
 
-            return bookDomainModel;
+            _dbContext.SaveChanges();
+            return existingBook;
         }
 
         // =========================================================================
-        // UPDATE: UpdateBookById - Logic Mới
-        // =========================================================================
-        public Book UpdateBookById(int id, AddBookDTO bookRequest)
-        {
-            // 1. Tìm sách cần cập nhật
-            var bookDomain = _dbContext.Books.FirstOrDefault(n => n.BookId == id);
-
-            if (bookDomain == null)
-            {
-                return null;
-            }
-
-            // 2. Cập nhật thuộc tính Domain Model từ DTO
-            bookDomain.Title = bookRequest.Title;
-            bookDomain.Description = bookRequest.Description;
-            bookDomain.IsRead = bookRequest.IsRead;
-            bookDomain.DateRead = bookRequest.DateRead;
-            bookDomain.Rate = bookRequest.Rate;
-            bookDomain.Genre = bookRequest.Genre;
-            bookDomain.CoverUrl = bookRequest.CoverUrl;
-            // DateAdded KHÔNG nên được cập nhật
-            bookDomain.PublisherId = bookRequest.PublisherId;
-
-            _dbContext.SaveChanges();
-
-            // 3. Xóa mối quan hệ Book_Author cũ
-            var authorDomain = _dbContext.Book_Authors
-                .Where(a => a.BookId == id)
-                .ToList();
-
-            if (authorDomain != null)
-            {
-                _dbContext.Book_Authors.RemoveRange(authorDomain);
-                _dbContext.SaveChanges();
-            }
-
-            // 4. Thêm mối quan hệ Book_Author mới
-            foreach (var authorId in bookRequest.AuthorIds)
-            {
-                var book_author = new Book_Author()
-                {
-                    BookId = id,
-                    AuthorId = authorId
-                };
-                _dbContext.Book_Authors.Add(book_author);
-            }
-            _dbContext.SaveChanges();
-
-            // 5. Trả về Domain Model đã cập nhật
-            return bookDomain;
-        }
-
-        // =========================================================================
-        // DELETE: DeleteBookById - Logic Mới
+        // DELETE (ĐÃ KHẮC PHỤC LỖI CS1061)
         // =========================================================================
         public Book? DeleteBookById(int id)
         {
-            // 1. Tìm sách
-            var bookDomain = _dbContext.Books.FirstOrDefault(n => n.BookId == id);
+            var bookDomain = _dbContext.Books.FirstOrDefault(b => b.BookId == id); // ĐÃ SỬA LỖI CS1061
 
-            if (bookDomain == null)
-            {
-                return null;
-            }
+            if (bookDomain == null) return null;
 
-            // 2. Xóa các mối quan hệ Book_Author liên quan
-            var bookAuthorsDomain = _dbContext.Book_Authors.Where(a => a.BookId == id).ToList();
-            _dbContext.Book_Authors.RemoveRange(bookAuthorsDomain);
+            // Xóa liên kết Book_Author trước (dùng id)
+            var bookAuthors = _dbContext.Book_Authors.Where(ba => ba.BookId == id).ToList();
+            _dbContext.Book_Authors.RemoveRange(bookAuthors);
 
-            // 3. Xóa sách
+            // Xóa sách
             _dbContext.Books.Remove(bookDomain);
-
             _dbContext.SaveChanges();
 
             return bookDomain;

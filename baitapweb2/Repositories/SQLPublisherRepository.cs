@@ -15,7 +15,9 @@ namespace baitapweb2.Repositories
             _dbContext = dbContext;
         }
 
+        // =========================================================================
         // CREATE
+        // =========================================================================
         public Publisher AddPublisher(PublisherNoIDDTO addPublisherRequest)
         {
             // Ánh xạ DTO sang Domain Model
@@ -30,40 +32,41 @@ namespace baitapweb2.Repositories
             return publisherDomain;
         }
 
-        // DELETE
+        // =========================================================================
+        // DELETE (Sửa lại để tuân thủ Bài tập 7: Phải báo lỗi nếu còn sách)
+        // =========================================================================
         public Publisher? DeletePublisherById(int id)
         {
+            // 1. Tìm Publisher Domain
             var publisherDomain = _dbContext.Publishers
                 .FirstOrDefault(n => n.PublisherId == id);
 
             if (publisherDomain == null)
             {
+                // Không tìm thấy Publisher, trả về null (Controller sẽ trả 404)
                 return null;
             }
 
-            // Kiểm tra xem có sách nào sử dụng Publisher này không
+            // 2. KIỂM TRA NGHIỆP VỤ (Bài tập 7): Kiểm tra xem có sách nào sử dụng Publisher này không
             var hasBooks = _dbContext.Books.Any(b => b.PublisherId == id);
 
             if (hasBooks)
             {
-                // Nếu có sách liên quan, bạn có thể chọn:
-                // 1. Throw exception: Không cho xóa.
-                // 2. Xóa các sách liên quan trước (cascade delete - không khuyến khích ở Repository).
-                // Ở đây, chúng ta sẽ không cho phép xóa nếu còn sách liên quan.
-                // Tuy nhiên, để đơn giản, chúng ta sẽ xóa Publisher và dựa vào cấu hình Database/EF Core.
-                // Nếu cấu hình Database có cascade delete thì các sách liên quan cũng bị xóa,
-                // nhưng tốt nhất là nên đảm bảo không có FK liên quan trước khi xóa.
-                // Trong môi trường thực tế, nên trả về lỗi. 
-                // Ở đây, giả định không cần kiểm tra phức tạp và tiến hành xóa.
+                // Nếu có sách liên quan, KHÔNG ĐƯỢC XÓA và trả về null.
+                // Điều này cho phép Controller biết rằng hành động xóa không thành công.
+                return null;
             }
 
+            // 3. Thực hiện Xóa
             _dbContext.Publishers.Remove(publisherDomain);
             _dbContext.SaveChanges();
 
             return publisherDomain;
         }
 
+        // =========================================================================
         // READ ALL
+        // =========================================================================
         public List<PublisherDTO> GetAllPublishers()
         {
             // Ánh xạ Domain Model sang DTO
@@ -76,7 +79,9 @@ namespace baitapweb2.Repositories
             return allPublishersDTO;
         }
 
+        // =========================================================================
         // READ BY ID
+        // =========================================================================
         public PublisherDTO GetPublisherById(int id)
         {
             var publisherDomain = _dbContext.Publishers.FirstOrDefault(n => n.PublisherId == id);
@@ -96,7 +101,9 @@ namespace baitapweb2.Repositories
             return publisherDTO;
         }
 
+        // =========================================================================
         // UPDATE
+        // =========================================================================
         public Publisher UpdatePublisherById(int id, PublisherNoIDDTO publisherNoIdDto)
         {
             var publisherDomain = _dbContext.Publishers.FirstOrDefault(n => n.PublisherId == id);

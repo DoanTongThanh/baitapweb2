@@ -23,7 +23,7 @@ namespace baitapweb2.Controllers
         // URL: GET /api/Publishers
         // =========================================================================
         [HttpGet]
-        public IActionResult GetAll()
+        public IActionResult GetAll() // Giữ nguyên tên phương thức GetAll() theo code gốc của bạn
         {
             var publishers = _publisherRepository.GetAllPublishers();
             return Ok(publishers);
@@ -96,6 +96,9 @@ namespace baitapweb2.Controllers
         [Route("{id:int}")]
         public IActionResult DeletePublisherById([FromRoute] int id)
         {
+            // Controller này chỉ gọi Repository. Mọi lỗi nghiệp vụ (như có sách liên quan) 
+            // sẽ được xử lý trong Repository. Nếu Repository trả về null, Controller trả 404.
+
             Publisher? deletedPublisherDomain = _publisherRepository.DeletePublisherById(id);
 
             if (deletedPublisherDomain == null)
@@ -106,4 +109,4 @@ namespace baitapweb2.Controllers
             return Ok(deletedPublisherDomain);
         }
     }
-} 
+}

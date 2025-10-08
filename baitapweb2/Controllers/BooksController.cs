@@ -1,38 +1,54 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using baitapweb2.Models.DTO;
 using baitapweb2.Repositories;
-using baitapweb2.Models.Domain; // Cần thiết để trả về Book Domain Model trong Add/Update
+using baitapweb2.Models.Domain;
+using baitapweb2.Filters;
+using System.Linq;
+using System.Net; // Cần thiết nếu sử dụng HttpStatusCode
 
 namespace baitapweb2.Controllers
 {
-    // Cấu hình Controller
     [Route("api/[controller]")]
     [ApiController]
     public class BooksController : ControllerBase
     {
-        // Khai báo Repository
         private readonly IBookRepository _bookRepository;
+        private readonly IPublisherRepository _publisherRepository;
+        private readonly IAuthorRepository _authorRepository;
 
-        // Dependency Injection: Nhận IBookRepository qua constructor
-        public BooksController(IBookRepository bookRepository)
+        public BooksController(IBookRepository bookRepository, IPublisherRepository publisherRepository, IAuthorRepository authorRepository)
         {
             _bookRepository = bookRepository;
+            _publisherRepository = publisherRepository;
+            _authorRepository = authorRepository;
         }
 
         // =========================================================================
-        // GET ALL BOOKS (READ)
-        // URL: GET /api/Books
+        // GET ALL BOOKS (READ) - FILTER, SORT, VÀ PAGINATION
         // =========================================================================
         [HttpGet]
-        public IActionResult GetAll()
+        public IActionResult GetAll(
+            [FromQuery] string? filterOn,
+            [FromQuery] string? filterQuery,
+            [FromQuery] string? sortBy,
+            [FromQuery] bool? isAscending,
+            [FromQuery] int pageNumber = 1,
+            [FromQuery] int pageSize = 10
+        )
         {
-            var books = _bookRepository.GetAllBooks();
+            var books = _bookRepository.GetAllBooks(
+                filterOn,
+                filterQuery,
+                sortBy,
+                isAscending ?? true,
+                pageNumber,
+                pageSize
+            );
             return Ok(books);
         }
 
         // =========================================================================
         // GET BOOK BY ID (READ)
-        // URL: GET /api/Books/{id}
         // =========================================================================
         [HttpGet]
         [Route("{id:int}")]
@@ -42,7 +58,7 @@ namespace baitapweb2.Controllers
 
             if (bookDto == null)
             {
-                return NotFound(); // Trả về 404 nếu không tìm thấy
+                return NotFound();
             }
 
             return Ok(bookDto);
@@ -50,43 +66,40 @@ namespace baitapweb2.Controllers
 
         // =========================================================================
         // ADD NEW BOOK (CREATE)
-        // URL: POST /api/Books
         // =========================================================================
         [HttpPost]
-        public IActionResult AddBook([FromBody] AddBookDTO addBookRequest)
+        [ValidateModel]
+        public IActionResult AddBook([FromBody] AddBookRequestDTO addBookRequest) // ĐÃ SỬA: AddBookRequestDTO
         {
-            // Kiểm tra tính hợp lệ của Model
-            if (!ModelState.IsValid)
+            if (!ValidateAddBook(addBookRequest))
             {
                 return BadRequest(ModelState);
             }
 
-            // Gọi Repository để thêm sách. Trả về Domain Model (Book)
             Book addedBookDomain = _bookRepository.AddBook(addBookRequest);
 
-            // Tùy chọn: Trả về 201 Created và đường dẫn đến tài nguyên mới
+            // ĐÃ SỬA LỖI CS1061: Dùng addedBookDomain.BookId
             return CreatedAtAction(nameof(GetBookById), new { id = addedBookDomain.BookId }, addedBookDomain);
         }
 
         // =========================================================================
         // UPDATE BOOK (UPDATE)
-        // URL: PUT /api/Books/{id}
         // =========================================================================
         [HttpPut]
         [Route("{id:int}")]
-        public IActionResult UpdateBookById([FromRoute] int id, [FromBody] AddBookDTO updateBookRequest)
+        [ValidateModel]
+        public IActionResult UpdateBookById([FromRoute] int id, [FromBody] AddBookRequestDTO updateBookRequest) // ĐÃ SỬA: AddBookRequestDTO
         {
-            if (!ModelState.IsValid)
+            if (!ValidateAddBook(updateBookRequest))
             {
                 return BadRequest(ModelState);
             }
 
-            // Gọi Repository để cập nhật sách. Trả về Domain Model (Book)
             Book? updatedBookDomain = _bookRepository.UpdateBookById(id, updateBookRequest);
 
             if (updatedBookDomain == null)
             {
-                return NotFound(); // Trả về 404 nếu không tìm thấy sách
+                return NotFound();
             }
 
             return Ok(updatedBookDomain);
@@ -94,23 +107,54 @@ namespace baitapweb2.Controllers
 
         // =========================================================================
         // DELETE BOOK (DELETE)
-        // URL: DELETE /api/Books/{id}
         // =========================================================================
         [HttpDelete]
         [Route("{id:int}")]
         public IActionResult DeleteBookById([FromRoute] int id)
         {
-            // Gọi Repository để xóa sách
             Book? deletedBookDomain = _bookRepository.DeleteBookById(id);
 
             if (deletedBookDomain == null)
             {
-                return NotFound(); // Trả về 404 nếu không tìm thấy
+                return NotFound();
             }
 
-            // Trả về sách đã xóa (hoặc NoContent)
             return Ok(deletedBookDomain);
-            // Hoặc dùng: return NoContent(); để trả về 204
         }
+
+        // =========================================================================
+        // PRIVATE METHODS (LOGIC VALIDATION)
+        // =========================================================================
+        #region Private Methods
+        private bool ValidateAddBook(AddBookRequestDTO addBookRequest) // ĐÃ SỬA: AddBookRequestDTO
+        {
+            // 1. Kiểm tra Book phải có ít nhất 1 Author
+            if (addBookRequest.AuthorIds == null || addBookRequest.AuthorIds.Count == 0)
+            {
+                ModelState.AddModelError(nameof(addBookRequest.AuthorIds), "Mỗi cuốn sách phải có ít nhất 1 tác giả.");
+            }
+
+            // 2. Kiểm tra PublisherID phải tồn tại
+            var publisher = _publisherRepository.GetAllPublishers().FirstOrDefault(p => p.Id == addBookRequest.PublisherId);
+            if (publisher == null)
+            {
+                ModelState.AddModelError(nameof(addBookRequest.PublisherId), $"Publisher với ID {addBookRequest.PublisherId} không tồn tại.");
+            }
+
+            // 3. Kiểm tra tất cả các AuthorID phải tồn tại
+            if (addBookRequest.AuthorIds != null && addBookRequest.AuthorIds.Any())
+            {
+                var validAuthorCount = _authorRepository.GetAllAuthors()
+                    .Count(a => addBookRequest.AuthorIds.Contains(a.Id));
+
+                if (validAuthorCount != addBookRequest.AuthorIds.Count)
+                {
+                    ModelState.AddModelError(nameof(addBookRequest.AuthorIds), "Một hoặc nhiều AuthorID không hợp lệ hoặc không tồn tại.");
+                }
+            }
+
+            return ModelState.IsValid;
+        }
+        #endregion
     }
 }
